@@ -148,6 +148,7 @@ BEGIN
 
     PERFORM assert_equals('+17787081945', normalize_phone_number('778-708-1945', 'CA'));
     PERFORM assert_equals('+18004685865', normalize_phone_number('1 800 GOT JUNK', 'CA'));
+    PERFORM assert_equals('+17787081945', normalize_phone_number('+17787081945 ext 123', 'CA'));
 
 END $body$;
 
@@ -173,6 +174,7 @@ BEGIN
     perform assert_equals('(1,7787081945,,"CA")', analyze_phone_number('7787081945', 'CA'));
     perform assert_equals('(1,7787081945,"123","CA")', analyze_phone_number('7787081945 ext. 123', 'CA'));
     perform assert_equals('(1,8007827282,,"US")', analyze_phone_number('800-Starbuc', 'US'));
+    perform assert_equals('(1,8888575309,666,"US")', analyze_phone_number('888.857.5309 x666', 'CA'));
 
     /* expected exceptions here: */
     perform assert_equals('(,,,)', analyze_phone_number('not a number', ''));
