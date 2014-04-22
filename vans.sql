@@ -51,10 +51,8 @@ BEGIN
               ORDER BY proname LOOP
     started = clock_timestamp();
 
-  BEGIN
+
     EXECUTE format('select vans.%s();', proc.proname);
---exception when raise_exception then raise notice 'exception';
-  END;
 
     RAISE NOTICE '% vans.%()', to_char(clock_timestamp() - started, 'MI:SS:MS'), proc.proname;
   END LOOP;
@@ -95,16 +93,90 @@ BEGIN
 
 END $body$;
 
-CREATE OR REPLACE FUNCTION is_domain_name(TEXT)
+CREATE OR REPLACE FUNCTION is_phone_number(TEXT, CHAR(2))
   RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $$
-   return false;
+
+	  if(typeof i18n === 'undefined') {
+		  plv8.find_function('vans.load_libphonenumber')();
+	  }
+
+	var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+
+	try{
+		var phoneNumber = phoneNumberUtil.parse($1, $2);
+		return phoneNumberUtil.isValidNumber(phoneNumber);
+	} catch(exp) {
+		if(exp === 'Invalid country calling code') {
+			throw exp;
+		}
+		return false;
+	}
 $$;
 
-CREATE OR REPLACE FUNCTION test_is_domain_name()
+CREATE OR REPLACE FUNCTION test_is_phone_number()
   RETURNS VOID LANGUAGE plpgsql AS $body$
 BEGIN
 
-    PERFORM assert_null(is_domain_name(null));
+    PERFORM assert_null(is_phone_number(null, null));
+
+    PERFORM assert_true(is_phone_number('778-708-1945', 'CA'));
+    PERFORM assert_true(is_phone_number('1.778.708.1945', 'CA'));
+    PERFORM assert_true(is_phone_number('1 800 GOT JUNK', 'US'));
+
+    perform assert_false(is_phone_number('6045551212','CH'));
+
+END $body$;
+
+CREATE OR REPLACE FUNCTION normalize_phone_number(TEXT, CHAR(2))
+  RETURNS TEXT STRICT IMMUTABLE LANGUAGE plv8 AS $body$
+
+	  if(typeof i18n === 'undefined') {
+		  plv8.find_function('vans.load_libphonenumber')();
+	  }
+
+	  var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+		var phoneNumber = phoneNumberUtil.parse($1, $2);
+		return phoneNumberUtil.format(phoneNumber, i18n.phonenumbers.PhoneNumberFormat.E164);
+
+$body$;
+
+CREATE OR REPLACE FUNCTION test_normalize_phone_number()
+  RETURNS VOID LANGUAGE plpgsql AS $body$
+BEGIN
+
+    PERFORM assert_null(normalize_phone_number(null, null));
+
+    PERFORM assert_equals('+17787081945', normalize_phone_number('778-708-1945', 'CA'));
+    PERFORM assert_equals('+18004685865', normalize_phone_number('1 800 GOT JUNK', 'CA'));
+
+END $body$;
+
+create or replace function analyze_phone_number(text, char(2)) returns phone_number strict immutable language plv8 as $body$
+
+	  if(typeof i18n === 'undefined') {
+		  plv8.find_function('vans.load_libphonenumber')();
+	  }
+
+	var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+
+		var phoneNumber = phoneNumberUtil.parse($1, $2);
+		return { "country_code": phoneNumber.getCountryCode(), "national_number": phoneNumber.getNationalNumber(), "extension": phoneNumber.getExtension(), "region_code":phoneNumberUtil.getRegionCodeForNumber(phoneNumber)};
+
+$body$;
+
+CREATE OR REPLACE FUNCTION test_analyze_phone_number()
+  RETURNS VOID LANGUAGE plpgsql AS $body$
+BEGIN
+
+    PERFORM assert_null(analyze_phone_number(null, null));
+
+    perform assert_equals('(1,7787081945,,"CA")', analyze_phone_number('7787081945', 'CA'));
+    perform assert_equals('(1,7787081945,"123","CA")', analyze_phone_number('7787081945 ext. 123', 'CA'));
+    perform assert_equals('(1,8007827282,,"US")', analyze_phone_number('800-Starbuc', 'US'));
+
+    /* expected exceptions here: */
+    perform assert_equals('(,,,)', analyze_phone_number('not a number', ''));
+    exception when internal_error then return;
 
 END $body$;
 
