@@ -6,7 +6,7 @@ Examples:
 
     select assert_true( is_phone_number('800 GOT JUNK ext. 123', 'CA') );
 
-    select assert_equals( normalize_phone_number('(604) 555-1212', 'CA'), '+16045551212'); --E164 format
+    select assert_equals( '+18004685865', normalize_phone_number('1 (800) GOT-JUNK', 'CA') ); --E164 format
 
     select * from analyze_phone_number('888.867.5309 x666', 'CA');
 
@@ -15,6 +15,8 @@ Examples:
     1               8888675309          '666'       'US'
 
 
-    assert_false( is_hostname('a-.com') );
+    select assert_false( is_hostname('a-.com') );
+
+    select assert_equals( 'www.hotmail.com', normalize_hostname(' WWW.HOTMAIL.COM  ') );
 
 More coming soon.
