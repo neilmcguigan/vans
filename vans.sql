@@ -93,6 +93,19 @@ BEGIN
 
 END $body$;
 
+create or replace function normalize_hostname(text) returns text strict immutable language plv8 as $body$
+    return $1.trim().toLowerCase();
+$body$;
+
+create or replace function test_normalize_hostname() returns void language plpgsql as $body$
+begin
+
+    perform assert_null(normalize_hostname(null));
+
+    perform assert_equals('www.hotmail.com', normalize_hostname(' WWW.HoTMaIl.com  '));
+
+end $body$;
+
 CREATE OR REPLACE FUNCTION is_phone_number(TEXT, CHAR(2))
   RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $$
 
