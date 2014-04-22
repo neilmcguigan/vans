@@ -32,9 +32,8 @@ CREATE OR REPLACE FUNCTION assert_equals(expected ANYELEMENT, actual ANYELEMENT)
   RETURNS VOID LANGUAGE plpgsql AS $body$
 BEGIN
   IF NOT (($1 = $2) IS TRUE)
-  THEN
   THEN RAISE EXCEPTION 'Assertion Error. Expected <%> but was <%>', expected, actual;
-END if;
+  END IF;
 END $body$;
 
 CREATE OR REPLACE FUNCTION run_all_tests()
@@ -93,6 +92,19 @@ BEGIN
     PERFORM assert_true(is_hostname('HOTMAIL.COM'));
     PERFORM assert_true(is_hostname('hot-mail.com'));
     PERFORM assert_true(is_hostname('a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z'));
+
+END $body$;
+
+CREATE OR REPLACE FUNCTION is_domain_name(TEXT)
+  RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $$
+   return false;
+$$;
+
+CREATE OR REPLACE FUNCTION test_is_domain_name()
+  RETURNS VOID LANGUAGE plpgsql AS $body$
+BEGIN
+
+    PERFORM assert_null(is_domain_name(null));
 
 END $body$;
 
