@@ -119,8 +119,8 @@ BEGIN
 
     PERFORM assert_null(is_phone_number(null, null));
 
-    PERFORM assert_true(is_phone_number('778-708-1945', 'CA'));
-    PERFORM assert_true(is_phone_number('1.778.708.1945', 'CA'));
+    PERFORM assert_true(is_phone_number('778-708-9999', 'CA'));
+    PERFORM assert_true(is_phone_number('1.778.708.9999', 'CA'));
     PERFORM assert_true(is_phone_number('1 800 GOT JUNK', 'US'));
 
     perform assert_false(is_phone_number('6045551212','CH'));
@@ -146,9 +146,9 @@ BEGIN
 
     PERFORM assert_null(normalize_phone_number(null, null));
 
-    PERFORM assert_equals('+17787081945', normalize_phone_number('778-708-1945', 'CA'));
+    PERFORM assert_equals('+17787089999', normalize_phone_number('778-708-9999', 'CA'));
     PERFORM assert_equals('+18004685865', normalize_phone_number('1 800 GOT JUNK', 'CA'));
-    PERFORM assert_equals('+17787081945', normalize_phone_number('+17787081945 ext 123', 'CA'));
+    PERFORM assert_equals('+17787089999', normalize_phone_number('+17787089999 ext 123', 'CA'));
 
 END $body$;
 
@@ -171,8 +171,8 @@ BEGIN
 
     PERFORM assert_null(analyze_phone_number(null, null));
 
-    perform assert_equals('(1,7787081945,,"CA")', analyze_phone_number('7787081945', 'CA'));
-    perform assert_equals('(1,7787081945,"123","CA")', analyze_phone_number('7787081945 ext. 123', 'CA'));
+    perform assert_equals('(1,7787089999,,"CA")', analyze_phone_number('7787089999', 'CA'));
+    perform assert_equals('(1,7787089999,"123","CA")', analyze_phone_number('7787089999 ext. 123', 'CA'));
     perform assert_equals('(1,8007827282,,"US")', analyze_phone_number('800-Starbuc', 'US'));
     perform assert_equals('(1,8888575309,666,"US")', analyze_phone_number('888.857.5309 x666', 'CA'));
 
