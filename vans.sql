@@ -1,3 +1,5 @@
+-- you should run load_libphonenumber.sql first.
+
 CREATE EXTENSION IF NOT EXISTS plv8;
 
 CREATE SCHEMA IF NOT EXISTS vans;
@@ -58,6 +60,7 @@ BEGIN
   END LOOP;
 
 END $body$;
+comment on function run_all_tests() is ' Runs all functions in the vans schema that begin with test_ . The functions should have no parameters.  ';
 
 CREATE OR REPLACE FUNCTION is_hostname(TEXT)
   RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $$
@@ -105,6 +108,10 @@ begin
     perform assert_equals('www.hotmail.com', normalize_hostname(' WWW.HoTMaIl.com  '));
 
 end $body$;
+
+create or replace function analyze_hostname(text) returns record strict immutable language plv8 as $body$
+     throw 'Not implemented';
+$body$;
 
 CREATE OR REPLACE FUNCTION is_phone_number(TEXT, CHAR(2))
   RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $$
@@ -194,6 +201,59 @@ BEGIN
     exception when internal_error then return;
 
 END $body$;
+
+create or replace function is_domain_name(text) returns boolean strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function normalize_domain_name(text) returns text strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function analyze_domain_name(text) returns record strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function is_postal_code(postal_code text, country_code char(2)) returns boolean strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function normalize_postal_code(postal_code text, country_code char(2)) returns text strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function analyze_postal_code(postal_code text, country_code char(2)) returns record strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function is_email_address(text) returns boolean strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function normalize_email_address(text) returns text strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function analyze_email_address(text) returns record strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function is_url(text) returns boolean strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function normalize_url(text) returns text strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function analyze_url(text) returns record strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+
+create or replace function analyze_ip_address(inet) returns record strict immutable language plv8 as $body$
+    throw 'Not implemented';
+$body$;
+comment on function analyze_ip_address(inet) is 'Returns geo information and reverse dns name.';
 
 SELECT
   run_all_tests();

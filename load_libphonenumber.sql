@@ -1,3 +1,10 @@
+CREATE EXTENSION IF NOT EXISTS plv8;
+
+CREATE SCHEMA IF NOT EXISTS vans;
+
+SET search_path TO vans;
+
+
 CREATE OR REPLACE FUNCTION vans.load_libphonenumber()
   RETURNS void language plv8 immutable AS
   $BODY$
