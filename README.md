@@ -1,4 +1,4 @@
-A library of PostgreSQL PL/V8 functions for Validation, Analysis, Normalization, and Synthesis (VANS) of basic types.
+VANs: A performant, test-driven PL/V8 library for Validation, Analysis, and Normalization of common types.
 
 Examples:
 
@@ -11,7 +11,6 @@ Examples:
     select * from analyze_phone_number('888.867.5309 x666', 'US');
 
     country_code  national_number  extension  region_code   is_valid_number_for_region  number_type  area_code  local_number
-    smallint      bigint           text       character(2)  boolean                     text         smallint   int
     1             8888675309       666        US            true                        TOLL_FREE    888        8675309
 
 
@@ -28,3 +27,11 @@ set vans.default_country_code = 'US';  Used for telephone numbers and postal cod
 set vans.allow_local_domains = false;  Used for email addresses and URLs.
 
 More coming soon.
+
+Todo:
+
+- solid annotation parsing
+- TAP or JUnit/surefire compatible output
+- @Timed tests
+- @Test(expected=exception_type)
+

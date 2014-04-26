@@ -11,6 +11,9 @@ CREATE EXTENSION IF NOT EXISTS plv8;
 
 CREATE SCHEMA IF NOT EXISTS vans;
 
+set vans.default_country_code = 'CA';
+set vans.allow_local_domains = false;
+
 SET search_path TO vans;
 
 CREATE OR REPLACE FUNCTION assert_true(ANYELEMENT)
@@ -45,6 +48,7 @@ BEGIN
   END IF;
 END $body$;
 
+
 CREATE OR REPLACE FUNCTION run_all_tests()
   RETURNS VOID LANGUAGE plpgsql AS $body$
 DECLARE
@@ -56,14 +60,14 @@ BEGIN
                 p.*
               FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n
                   ON pronamespace = n.oid
-              WHERE nspname = 'vans' AND proname LIKE 'test_%'
+              WHERE nspname = 'vans' AND proname LIKE 'test_%' and coalesce(obj_description(p.oid), '') !~* '@ignore'
               ORDER BY proname LOOP
     started = clock_timestamp();
 
-
-    EXECUTE format('select vans.%s();', proc.proname);
+    execute format('select vans.%I();', proc.proname);
 
     RAISE NOTICE '% vans.%()', to_char(clock_timestamp() - started, 'MI:SS:MS'), proc.proname;
+
   END LOOP;
 
 END $body$;
@@ -102,6 +106,7 @@ BEGIN
     PERFORM assert_true(is_hostname('a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z'));
 
 END $body$;
+comment on function test_is_hostname() is '';
 
 create or replace function normalize_hostname(text) returns text strict immutable language plv8 as $body$
     return $1.trim().toLowerCase();
@@ -117,11 +122,19 @@ begin
 
 end $body$;
 
-create or replace function analyze_hostname(text) returns record strict immutable language plv8 as $body$
-     throw 'Not implemented';
+drop type if exists hostname cascade;
+create type hostname as (
+  labels text[]
+);
+
+create or replace function analyze_hostname(text) returns hostname strict immutable language plv8 as $body$
+     return { "labels": $1.split(/\./) };
 $body$;
 
-set vans.default_country_code = 'CA';
+create or replace function test_analyze_hostname() returns void language plpgsql as $body$
+begin
+  perform assert_equals( '("{www,wikipedia,org}")', analyze_hostname('www.wikipedia.org') );
+end $body$;
 
 drop type if exists phone_number cascade;
 
@@ -139,9 +152,9 @@ create type phone_number as (
 CREATE OR REPLACE FUNCTION is_phone_number(TEXT, CHAR(2))
   RETURNS BOOLEAN STRICT IMMUTABLE LANGUAGE plv8 AS $body$
 
-	  if(typeof i18n === 'undefined') {
-		  plv8.find_function('vans.load_libphonenumber')();
-	  }
+	if(typeof i18n === 'undefined') {
+    plv8.find_function('vans.load_libphonenumber')();
+	}
 
 	var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
 
@@ -166,7 +179,7 @@ BEGIN
 
     PERFORM assert_null(is_phone_number(null, null));
 
-    PERFORM assert_true(is_phone_number('778-708-9999', 'CA'));
+    PERFORM assert_true(is_phone_number('778-708-9999', 'ca'));
     PERFORM assert_true(is_phone_number('1.778.708.9999', 'CA'));
     PERFORM assert_true(is_phone_number('1 800 GOT JUNK', 'US'));
 
@@ -200,7 +213,7 @@ BEGIN
 
     PERFORM assert_null(normalize_phone_number(null, null));
 
-    PERFORM assert_equals('+17787089999', normalize_phone_number('778-708-9999', 'CA'));
+    PERFORM assert_equals('+17787089999', normalize_phone_number('778-708-9999', 'cA'));
     PERFORM assert_equals('+18004685865', normalize_phone_number('1 800 GOT JUNK', 'CA'));
     PERFORM assert_equals('+17787089999', normalize_phone_number('+17787089999 ext 123', 'CA'));
 
@@ -212,16 +225,12 @@ create or replace function analyze_phone_number(text, char(2)) returns phone_num
 		  plv8.find_function('vans.load_libphonenumber')();
 	  }
 
-	var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
+	  var phoneNumberUtil = i18n.phonenumbers.PhoneNumberUtil.getInstance();
 
 		var phoneNumber = phoneNumberUtil.parse($1, $2);
 		return { "country_code": phoneNumber.getCountryCode(), "national_number": phoneNumber.getNationalNumber(), "extension": phoneNumber.getExtension(), "region_code":phoneNumberUtil.getRegionCodeForNumber(phoneNumber)};
 
 $body$;
-
-create or replace function analyze_phone_number(text) returns phone_number strict volatile language sql as '
-  select vans.analyze_phone_number($1, current_setting(''vans.default_country_code''));
-';
 
 CREATE OR REPLACE FUNCTION test_analyze_phone_number()
   RETURNS VOID LANGUAGE plpgsql AS $body$
@@ -240,6 +249,10 @@ BEGIN
 
 END $body$;
 
+create or replace function analyze_phone_number(text) returns phone_number strict volatile language sql as '
+  select vans.analyze_phone_number($1, current_setting(''vans.default_country_code''));
+';
+
 drop type if exists domain_name cascade;
 create type domain_name as (
   public_suffix text,
@@ -247,11 +260,49 @@ create type domain_name as (
 );
 
 create or replace function is_domain_name(text) returns boolean strict immutable language plv8 as $body$
-    throw 'Not implemented';
+
+    const REGEXP = /^(([a-z0-9]|[a-z0-9][a-z0-9\-]{0,61}[a-z0-9])\.)+([a-z]{2,})$/i;
+    const MAX_LEN = 253;
+    const TLDS = ['ac','ad','ae','aero','af','ag','ai','al','am','an','ao','aq','ar','arpa','as','asia','at','au','aw','ax','az','ba','bb','bd','be','bf','bg','bh','bi','biz','bj','bm','bn','bo','br','bs','bt','bv','bw','by','bz','ca','cat','cc','cd','cf','cg','ch','ci','ck','cl','cm','cn','co','com','coop','cr','cu','cv','cw','cx','cy','cz','de','dj','dk','dm','do','dz','ec','edu','ee','eg','er','es','et','eu','fi','fj','fk','fm','fo','fr','ga','gb','gd','ge','gf','gg','gh','gi','gl','gm','gn','gov','gp','gq','gr','gs','gt','gu','gw','gy','hk','hm','hn','hr','ht','hu','id','ie','il','im','in','info','int','io','iq','ir','is','it','je','jm','jo','jobs','jp','ke','kg','kh','ki','km','kn','kp','kr','kw','ky','kz','la','lb','lc','li','lk','lr','ls','lt','lu','lv','ly','ma','mc','md','me','mg','mh','mil','mk','ml','mm','mn','mo','mobi','mp','mq','mr','ms','mt','mu','museum','mv','mw','mx','my','mz','na','name','nc','ne','net','nf','ng','ni','nl','no','np','nr','nu','nz','om','org','pa','pe','pf','pg','ph','pk','pl','pm','pn','post','pr','pro','ps','pt','pw','py','qa','re','ro','rs','ru','rw','sa','sb','sc','sd','se','sg','sh','si','sj','sk','sl','sm','sn','so','sr','ss','st','su','sv','sx','sy','sz','tc','td','tel','tf','tg','th','tj','tk','tl','tm','tn','to','tp','tr','travel','tt','tv','tw','tz','ua','ug','uk','us','uy','uz','va','vc','ve','vg','vi','vn','vu','wf','ws','xxx','ye','yt','za','zm','zw'];
+
+    var matches = $1.match(REGEXP);
+    if(matches === null || $1.length > MAX_LEN) return false;
+
+    return TLDS.indexOf(matches[matches.length-1].toLowerCase()) != -1;
+
 $body$;
 
+create or replace function test_is_domain_name() returns void language plpgsql as $body$
+begin
+
+    perform assert_null( is_domain_name(null) );
+
+    perform assert_false(is_domain_name(' '));
+    perform assert_false(is_domain_name('a'));
+    perform assert_false(is_domain_name('a-.com'));										--hostname cannot begin or end with "-", though can contain between alphanums
+    perform assert_false(is_domain_name('-aa.com'));
+    perform assert_false(is_domain_name('www.hot_mail.com'));							--underscores not allowed
+    perform assert_false(is_domain_name('www.hotmail.moc'));							--moc is not a top-level domain
+    perform assert_false(is_domain_name('com'));										--is a tld, but not a domain name
+    perform assert_false(is_domain_name('localhost'));
+    perform assert_false(is_domain_name(repeat('a', 64) || '.com')); 					--label too long (63 max)
+    perform assert_false(is_domain_name(repeat(repeat('a', 62) || '.', 4) || 'ca'));	--overall length too long (253 max)
+
+    perform assert_true(is_domain_name(repeat('a', 63) || '.com'));						--long label ok
+    perform assert_true(is_domain_name(repeat(repeat('a', 63) || '.', 3) || 'com'));	--long label ok
+    perform assert_true(is_domain_name(repeat('a.', 125) || 'com'));					--lots of labels ok
+    perform assert_true(is_domain_name('www.hot-mail.com'));
+    perform assert_true(is_domain_name('WWW.HOTMAIL.COM'));
+    perform assert_true(is_domain_name('x.mil'));
+    perform assert_true(is_domain_name('a-b.com'));
+    perform assert_true(is_domain_name('a9.com'));
+    perform assert_true(is_domain_name('9a.com'));
+    perform assert_true(is_domain_name('a.bc.def.museum'));
+
+end $body$;
+
 create or replace function normalize_domain_name(text) returns text strict immutable language plv8 as $body$
-    throw 'Not implemented';
+    return $1.trim().toLowerCase();
 $body$;
 
 create or replace function analyze_domain_name(text) returns record strict immutable language plv8 as $body$
@@ -306,7 +357,7 @@ $body$;
 drop type if exists url cascade;
 create type url as (
   protocol text,
-  host text,
+  hostname text,
   host_no_www text,
   port smallint,
   defaultPort smallint,
@@ -328,8 +379,8 @@ create or replace function analyze_url(text) returns record strict immutable lan
     throw 'Not implemented';
 $body$;
 
-drop type if exists ip_geo cascade;
-create type ip_geo as (
+drop type if exists ip_info cascade;
+create type ip_info as (
   continent_code char(2),
   country_code char(2),
   region_code char(5),
@@ -338,7 +389,8 @@ create type ip_geo as (
   longitude decimal(9,6),
   latitude decimal(8,6),
   area_code smallint,
-  metro_code smallint
+  metro_code smallint,
+  domain_name text
 );
 
 create or replace function analyze_ip_address(inet) returns record strict immutable language plv8 as $body$
@@ -348,3 +400,4 @@ comment on function analyze_ip_address(inet) is 'Returns geo information and rev
 
 SELECT
   run_all_tests();
+
